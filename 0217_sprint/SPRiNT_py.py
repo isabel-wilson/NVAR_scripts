@@ -12,12 +12,12 @@ opt = {
     "WinLength": 1, # STFT window length
     "WinOverlap": 50, # Overlap between sliding windows (in %)
     "WinAverage": 5, # Number of overlapping windows being averaged
-    "rmoutliers": 1, # Apply peak post-processing
-    "maxTime": 6, # Maximum distance of nearby peaks in time (in n windows)
-    "maxFreq": 2.5, # Maximum distance of nearby peaks in frequency (in Hz)
-    "minNear": 3, # Minimum number of similar peaks nearby (using above bounds)
+   # "rmoutliers": 1, # Apply peak post-processing
+  #  "maxTime": 6, # Maximum distance of nearby peaks in time (in n windows)
+   # "maxFreq": 2.5, # Maximum distance of nearby peaks in frequency (in Hz)
+  #  "minNear": 3, # Minimum number of similar peaks nearby (using above bounds)
     }
-
+# = not relevant to main sprint stft
 """
 #----------------------------------------------------------
 #------ Import packages -----------------------------------
