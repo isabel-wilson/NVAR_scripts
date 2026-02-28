@@ -12,12 +12,12 @@ opt = {
     "WinLength": 1, # STFT window length
     "WinOverlap": 50, # Overlap between sliding windows (in %)
     "WinAverage": 5, # Number of overlapping windows being averaged
-   # "rmoutliers": 1, # Apply peak post-processing
-  #  "maxTime": 6, # Maximum distance of nearby peaks in time (in n windows)
-   # "maxFreq": 2.5, # Maximum distance of nearby peaks in frequency (in Hz)
-  #  "minNear": 3, # Minimum number of similar peaks nearby (using above bounds)
+    "rmoutliers": 1, # Apply peak post-processing
+    "maxTime": 6, # Maximum distance of nearby peaks in time (in n windows)
+    "maxFreq": 2.5, # Maximum distance of nearby peaks in frequency (in Hz)
+    "minNear": 3, # Minimum number of similar peaks nearby (using above bounds)
     }
-# = not relevant to main sprint stft
+
 """
 #----------------------------------------------------------
 #------ Import packages -----------------------------------
@@ -38,6 +38,7 @@ import mne
 import pickle as pkl
 import argparse
 import os
+import re
 
 
 #----------------------------------------------------------
@@ -247,7 +248,7 @@ opt = {
     "sfreq": 500, # Input sampling rate # CHANGED
     "WinLength": 4, # STFT window length # CHANGED
     "WinOverlap": 50, # Overlap between sliding windows (in %)
-    "WinAverage": 5, # Number of overlapping windows being averaged
+    "WinAverage": 3, # Number of overlapping windows being averaged
     "rmoutliers": 1, # Apply peak post-processing
     "maxTime": 6, # Maximum distance of nearby peaks in time (in n windows)
     "maxFreq": 2.5, # Maximum distance of nearby peaks in frequency (in Hz)
@@ -263,61 +264,72 @@ bands = Bands({'delta' : [1, 4],
 #----------------------------------------------------------
 #------ Paths ---------------------------------------------
 
-# Use the argument you passed in to set up the paths
+# Get argument
 parser = argparse.ArgumentParser()
-parser.add_argument("--idx", type=str, required=True)
+parser.add_argument("--prefix", type=str, required=True)
 args = parser.parse_args()
-print(f"Running job {args.idx}")
+print(f"Running job {args.prefix}")
 
+# Set up paths
 base_path = "/home/isw3/scratch/sprint"
-stc_name = args.idx
-input_path = os.path.join(base_path, "input", stc_name)
-sprint_output_path = os.path.join(base_path, "output", stc_name + "_sprint.pkl")
+prefix = args.prefix
+input_path = os.path.join(base_path, "input", prefix)
 
 print("Path names:")
-print(stc_name)
+print(prefix)
 print(input_path)
-print(sprint_output_path)
 
 #----------------------------------------------------------
-#------ Run sprint and fooof ------------------------------
+#------ Morph files to fsaverage --------------------------
 
 # Get data: Read stc files
 # Files are beamformed stcs for each individual/session/scan
 # Note that the data attribute of the stc has format n_vertices, n_times
-# On Linux 1 they are listed with the format /home/nanolab/Documents/NVAR/derivatives/sub_NVAR008/251016/beamformer/stc
-#print("Path to stc: " + input_path)
-#stc = mne.read_source_estimate(input_path)
-#print("stc loaded")
-#F = stc.data
+print("Path to stc: " + input_path)
+stc = mne.read_source_estimate(input_path)
+print("stc loaded")
 
-# expects a numpy array
-#print("Running sprint:")
-#output = SPRiNT_stft_py(F, opt)
-#print("Done running sprint")
+print("Morphing to fsaverage:")
+subject = re.search(r'sub_[A-Z0-9]+', prefix).group()
+morph = mne.compute_source_morph(
+    stc,
+    subject_from = subject, 
+    subject_to = "fsaverage", # to fsaverage
+    subjects_dir = "/home/isw3/scratch/sprint/MRI"
+    )
+stc_morphed = morph.apply(stc)
+stc_morphed.save(os.path.join(base_path, "input", prefix + "_morphed"))
+print("Morph done")
+
+#----------------------------------------------------------
+#------ Run sprint and fooof ------------------------------
+
+# Run STFT component of SPRiNT
+print("Running sprint:")
+F = stc_morphed.data[0]
+output = SPRiNT_stft_py(F, opt) # expects a numpy array
+print("Done running sprint")
 
 # Write to file
-#print("Writing sprint output to file:")
-#with open(sprint_output_path, "wb") as f:
-#    pkl.dump(output, f)
-#print("Done writing sprint output to file")
+print("Writing sprint output to file:")
+with open(os.path.join(base_path, "output", prefix + "_sprint.pkl"), "wb") as f:
+    pkl.dump(output, f)
+print("Done writing sprint output to file")
 
-with open(sprint_output_path, "rb") as f:
-    output = pkl.load(f)
+#with open(os.path.join(base_path, "output", prefix + "_sprint.pkl"), "rb") as f:
+#    output = pkl.load(f)
 
-# run fooof across channels and time
-# Note in og code: "Only issue: Does not use previous window's exponent estimate, haven't seen discrepancies yet (...)"
-# These params have been confirmed with AW
+# Run fooof across channels and time
 print("Running fooof:")
 fg = fooof.FOOOFGroup(peak_width_limits=[2, 6], min_peak_height=0.5, max_n_peaks=3)
-# second param is freq domain, third is power domain
-fgs = fooof.fit_fooof_3d(fg, output['freqs'], output['TF'], freq_range=[1, 40])
+fgs = fooof.fit_fooof_3d(fg, output['freqs'], output['TF'], freq_range=[1, 40]) # second param is freq domain, third is power domain
 print("Done running fooof")
 
-# Write to file
-# Each row in file will be a window
+# Write to file: Each row in file represents a time window
 print("Writing fooof output to file:")
 for i in range(len(fgs)): 
     df = fgs[i].to_df(bands)
-    df.to_csv(os.path.join(base_path, "output", stc_name + "_" + str(i) + "_fooof.csv"), na_rep="NaN")
+    df.to_csv(os.path.join(base_path, "output", prefix + "_fooof_vertex" + str(i) + ".csv"), na_rep="NaN")
 print("Done writing fooof output to file")
+
+# %%

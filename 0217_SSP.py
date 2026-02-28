@@ -26,16 +26,19 @@ def plot_spectrum(data):
 #%%
 # Load ERM and view
 empty_room_raw = mne.io.read_raw_fif("C:/meg/NVAR_preprocessing/MEG/sub_NVAR001/260105/sub_NVAR001_erm_raw.fif", preload = True)
-#empty_room_raw.del_proj() 
-#plot_spectrum(empty_room_raw)
+empty_room_raw_filt = empty_room_raw.copy().filter(l_freq=40, h_freq=45)
+empty_room_projs = mne.compute_proj_raw(empty_room_raw_filt, n_grad=4, n_mag=4)
+mne.viz.plot_projs_topomap(empty_room_projs, colorbar=True, vlim="joint", info=empty_room_raw.info)
 
-#%%
-# Compute projectors, and plot
-empty_room_raw_filt = empty_room_raw.copy().filter(l_freq=42, h_freq=45)
-empty_room_projs = mne.compute_proj_raw(empty_room_raw_filt, n_grad=3, n_mag=3)
-mne.viz.plot_projs_topomap(
-    empty_room_projs, colorbar=True, vlim="joint", info=empty_room_raw.info
-)
+
+
+file = "C:/meg/NVAR_preprocessing/MEG/sub_NVAR001/260105/sub_NVAR001_260105_rest1_raw_tsss.fif"
+raw = mne.io.read_raw_fif(file, preload = True)
+raw.filter(l_freq=40, h_freq=45).add_proj(empty_room_projs)
+raw.apply_proj()
+plot_spectrum(raw)
+
+
 
 # %%
 # Load raw and view
